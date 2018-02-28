@@ -1,0 +1,176 @@
+---
+title: "Trump_twitter_2"
+output: html_document
+---
+
+Adapted from code by David Robinson
+
+
+```{r}
+library(stringr)
+library(tidytext)
+library(tidyverse)
+library(lubridate)
+library(forcats)
+```
+
+
+```{r}
+url <- 'http://www.trumptwitterarchive.com/data/realdonaldtrump/%s.json'
+all_tweets <- map(2009:2017, ~sprintf(url, .x)) %>%
+  map_df(jsonlite::fromJSON, simplifyDataFrame = TRUE) %>%
+  mutate(created_at = parse_date_time(created_at, "a b! d! H!:M!:S! z!* Y!")) %>%
+  tbl_df()
+```
+
+
+```{r}
+library(forcats)
+library(scales)
+date <- as.Date('2014-01-01')
+recent_tweets = all_tweets %>% filter(created_at > date)
+
+
+
+
+recent_tweets %>%
+  mutate(source = fct_lump(source, 5)) %>%
+  count(month = round_date(created_at, "month"), source) %>%
+  complete(month, source, fill = list(n = 0)) %>%
+  mutate(source = reorder(source, -n, sum)) %>%
+  group_by(month) %>%
+  mutate(percent = n / sum(n),
+         maximum = cumsum(percent),
+         minimum = lag(maximum, 1, 0)) %>%
+  ggplot(aes(month, ymin = minimum, ymax = maximum, fill = source)) +
+  geom_ribbon() +
+  scale_y_continuous(labels = percent_format()) +
+  labs(x = "Time",
+       y = "% of Trump's tweets",
+       fill = "Source",
+       title = "Source of @realDonaldTrump tweets over time",
+       subtitle = "Summarized by month")
+```
+
+
+```{r}
+phone_type = recent_tweets %>% filter(source == c('Twitter for iPhone', 'Twitter for Android', 'Twitter for BlackBerry'))
+ggplot(phone_type, aes(created_at, source)) + 
+  geom_jitter() +
+  ggtitle("Timeline of @realDonaldTrump twitter activity by source") +
+  xlab("Date of Tweet") + ylab("Source")
+```
+
+```{r, echo = FALSE}
+all_tweets %>%
+  filter(!str_detect(text, "^(\"|RT)")) %>%
+  group_by(month = round_date(created_at, "month")) %>%
+  summarize(tweets = n(),
+            hashtag = sum(str_detect(str_to_lower(text), "hillary")),
+            percent = hashtag / tweets) %>%
+  ungroup() %>%
+  filter(tweets >= 10) %>%
+  ggplot(aes(as.Date(month), percent)) +
+  geom_line() +
+  geom_point() +
+  geom_vline(xintercept = as.integer(as.Date("2016-07-25")), color = "red", lty = 2) +
+  geom_vline(xintercept = as.integer(as.Date("2017-01-20")), color = "blue", lty = 2) +
+  scale_y_continuous(labels = percent_format()) +
+  labs(x = "Time",
+       y = "% of Trump's tweets that mention Hillary",
+       subtitle = paste0("Summarized by month; only months containing at least 10 tweets.\n",
+                         "Red line is DNC Convention, blue is inguration."),
+       title = "Trump's tweets mentioning Hillary")
+```
+
+```{r, echo = FALSE}
+all_tweets %>%
+  filter(!str_detect(text, "^(\"|RT)")) %>%
+  group_by(month = round_date(created_at, "month")) %>%
+  summarize(tweets = n(),
+            hashtag = sum(str_detect(str_to_lower(text), "fake news")),
+            percent = hashtag / tweets) %>%
+  ungroup() %>%
+  filter(tweets >= 10) %>%
+  ggplot(aes(as.Date(month), percent)) +
+  geom_line() +
+  geom_point() +
+  geom_vline(xintercept = as.integer(as.Date("2016-11-08")), color = "red", lty = 2) +
+  scale_y_continuous(labels = percent_format()) +
+  labs(x = "Time",
+       y = "% of Trump's tweets that mentioning Fake News",
+       subtitle = paste0("Summarized by month; only months containing at least 10 tweets.\n",
+                         "Red line is Election Day"),
+       title = "Trump's tweets mentioning Fake News")
+```
+
+```{r}
+reg <- "([^A-Za-z_\\d#@']|'(?![A-Za-z_\\d#@]))"
+
+recent_tweet_words <- phone_type %>%
+  mutate(text = str_replace_all(text, "https?://t.co/[A-Za-z\\d]+|&amp;", "")) %>%
+  filter(!str_detect(text, "^(\"|RT)")) %>%
+  unnest_tokens(word, text, token = "regex", pattern = reg) %>%
+  filter(!word %in% stop_words$word, str_detect(word, "[a-z]"))
+```
+
+
+```{r}
+recent_tweet_words %>%
+  inner_join(get_sentiments("afinn")) %>%
+  group_by(month = round_date(created_at, "month")) %>%
+  summarize(average_sentiment = mean(score), words = n()) %>%
+  filter(words >= 10) %>%
+  ggplot(aes(month, average_sentiment)) +
+  geom_line() +
+  geom_hline(color = "red", lty = 2, yintercept = 0) +
+  labs(x = "Time",
+       y = "Average AFINN sentiment score",
+       title = "@realDonaldTrump sentiment over time",
+       subtitle = "Dashed line represents a 'neutral' sentiment average. Only months with at least 10 words present in the AFINN lexicon")
+```
+
+```{r}
+word_summary <- recent_tweet_words %>%
+  group_by(word) %>%
+  summarize(total = n(),
+            median_retweets = median(retweet_count))
+```
+
+
+```{r}
+word_summary %>%
+  filter(total >= 25) %>%
+  arrange(desc(median_retweets)) %>%
+  slice(c(1:20, seq(n() - 19, n()))) %>%
+  mutate(type = rep(c("Most retweets", "Fewest retweets"), each = 20)) %>%
+  mutate(word = reorder(word, median_retweets)) %>%
+  ggplot(aes(word, median_retweets)) +
+  geom_col() +
+  labs(x = "",
+       y = "Median # of retweets for tweets containing this word",
+       title = "Words that led to many or few retweets") +
+  coord_flip() +
+  facet_wrap(~ type, ncol = 1, scales = "free_y")
+```
+```{r, echo =FALSE}
+fav_word_summary <- recent_tweet_words %>%
+  group_by(word) %>%
+  summarize(total = n(),
+            median_retweets = median(favorite_count))
+
+fav_word_summary %>%
+  filter(total >= 25) %>%
+  arrange(desc(median_retweets)) %>%
+  slice(c(1:20, seq(n() - 19, n()))) %>%
+  mutate(type = rep(c("Most Favorited", "Least Favorited"), each = 20)) %>%
+  mutate(word = reorder(word, median_retweets)) %>%
+  ggplot(aes(word, median_retweets)) +
+  geom_col() +
+  labs(x = "",
+       y = "Median # of Favorites for tweets containing this word",
+       title = "Favorite or least popular words") +
+  coord_flip() +
+  facet_wrap(~ type, ncol = 1, scales = "free_y")
+```
+
