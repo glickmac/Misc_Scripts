@@ -1,0 +1,22 @@
+---
+title: "Reticulate"
+author: "Cody Glickman"
+date: "4/1/2018"
+output: html_document
+---
+
+```{r}
+library(reticulate)
+os = import("os")
+os$listdir(".")
+x = "1.0"
+```
+
+```{r}
+class(x)
+```
+
+```{r}
+y = "co"
+```
+
