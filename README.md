@@ -1,13 +1,22 @@
 # Tutorials
+This repository contain useful scripts and demos that I have completed throughout the years. 
 
-### Add Command Line Scripts
+### Useful Command Line Scripts
+This chunk contains useful command line scripts for text processing
 
-Use Test script to check if image library contains images with at least three dimensions
-python Mosaic_Test.py
+- Remove first line from a file inplace
+```
+sed -i '1d' filename
+```
 
-Reuse images True/False in the script
+
+### Running Photo Mosaic Script 
+- Download images and photo mosaic image to use 
+
+- Use Test script to check if image library contains images with at least three dimensions
+```python Mosaic_Test.py```
+
+- Options of Mosaic.py
 Smaller the grid size, larger the inserted images
-
-python Mosaic.py --target-image image_to_use --input-folder images/ --grid-size 64 64
-
+```python Mosaic.py --target-image image_to_use --reuse-image True --input-folder images/ --grid-size 64 64```
 
