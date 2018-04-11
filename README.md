@@ -17,6 +17,10 @@ sed -i '1d' filename
 ```python Mosaic_Test.py```
 
 - Options of Mosaic.py
+
 Smaller the grid size, larger the inserted images
-```python Mosaic.py --target-image image_to_use --reuse-image True --input-folder images/ --grid-size 64 64```
+
+```
+python Mosaic.py --target-image image_to_use --reuse-image True --input-folder images/ --grid-size 64 64
+```
 
